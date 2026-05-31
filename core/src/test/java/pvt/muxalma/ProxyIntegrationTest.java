@@ -3,18 +3,20 @@ package pvt.muxalma;
 import org.junit.jupiter.api.*;
 import pvt.muxalma.feminine.HttpProxyServer;
 import pvt.muxalma.masculine.HttpProxyClient;
+import pvt.muxalma.masculine.OrderingProcessor;
+import pvt.muxalma.masculine.ParallelProcessor;
 import pvt.muxalma.model.NetworkEvent;
-import pvt.muxalma.proxy.EventLoopProcessor;
+import pvt.muxalma.model.ValidationProcessor;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,14 +26,18 @@ public class ProxyIntegrationTest {
     private HttpProxyServer server;
     private TestEventConsumer clientEventConsumer;
     private HttpProxyClient client;
-    private EventLoopProcessor processor;
+    private ParallelProcessor parallel;
     
     @BeforeAll
     void setup() throws InterruptedException {
         clientEventConsumer = new TestEventConsumer();
         client = new HttpProxyClient(clientEventConsumer);
-        processor = new EventLoopProcessor(client);
-        server = new HttpProxyServer(18080, processor);
+        // Создаём цепочку для обработки событий
+        OrderingProcessor ordered = new OrderingProcessor(client);
+        parallel = new ParallelProcessor(ordered);
+        Consumer<NetworkEvent> valid = new ValidationProcessor(
+                parallel, clientEventConsumer);
+        server = new HttpProxyServer(18080, valid);
         server.start();
         
         // Даем время на запуск
@@ -42,7 +48,7 @@ public class ProxyIntegrationTest {
     void cleanup() {
         server.stop();
         client.shutdown();
-        processor.shutdown();
+        parallel.shutdown();
     }
     
     @Test
@@ -77,7 +83,7 @@ public class ProxyIntegrationTest {
         assertThat(clientEventConsumer.await(5, TimeUnit.SECONDS)).isTrue();
     }*/
     
-    private static class TestEventConsumer implements java.util.function.Consumer<NetworkEvent> {
+    private static class TestEventConsumer implements Consumer<NetworkEvent> {
         private final AtomicReference<NetworkEvent[]> expected = new AtomicReference<>();
         private final CountDownLatch latch = new CountDownLatch(3);
         private int index = 0;
@@ -95,7 +101,7 @@ public class ProxyIntegrationTest {
             NetworkEvent[] expectedEvents = expected.get();
             if (expectedEvents != null && index < expectedEvents.length) {
                 assertThat(event.getSerial()).isEqualTo(expectedEvents[index].getSerial());
-                assertThat(event.getEventType()).isEqualTo(expectedEvents[index].getEventType());
+                assertThat(event.getType()).isEqualTo(expectedEvents[index].getType());
                 index++;
                 latch.countDown();
             }
