@@ -1,6 +1,7 @@
 package pvt.muxalma.feminine;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -22,17 +23,15 @@ import java.util.function.Consumer;
 public class HttpProxyServer {
     private final int port;
     private final Consumer<NetworkEvent> eventConsumer;
+    private final ConnectionManager connectionManager;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel channel;
 
-    // Для HTTP запросов (не CONNECT) нужно сразу соединяться с удаленным сервером
-    private final EventLoopGroup clientWorkerGroup = new NioEventLoopGroup();
-    private final ConcurrentHashMap<UUID, Channel> remoteChannels = new ConcurrentHashMap<>();
-
-    public HttpProxyServer(int port, Consumer<NetworkEvent> eventConsumer) {
+    public HttpProxyServer(int port, Consumer<NetworkEvent> eventConsumer, ConnectionManager connectionManager) {
         this.port = port;
         this.eventConsumer = eventConsumer;
+        this.connectionManager = connectionManager;
     }
 
     public void start() throws InterruptedException {
@@ -49,7 +48,7 @@ public class HttpProxyServer {
                         ch.pipeline().addLast(
                                 new HttpServerCodec(),
                                 new HttpObjectAggregator(65536),
-                                new ProxyServerHandler(eventConsumer, clientWorkerGroup, remoteChannels)
+                                new ProxyServerHandler(eventConsumer, connectionManager)
                         );
                     }
                 });
@@ -68,29 +67,26 @@ public class HttpProxyServer {
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
         }
-        clientWorkerGroup.shutdownGracefully();
     }
 
     private static class ProxyServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         private final Consumer<NetworkEvent> eventConsumer;
-        private final EventLoopGroup clientWorkerGroup;
-        private final ConcurrentHashMap<UUID, Channel> remoteChannels;
+        private final ConnectionManager connectionManager;
 
         private UUID connectionId;
         private final AtomicInteger serial = new AtomicInteger(0);
-        private Channel remoteChannel;
         private boolean isConnect = false;
+        private ChannelHandlerContext clientCtx;
 
-        ProxyServerHandler(Consumer<NetworkEvent> eventConsumer,
-                           EventLoopGroup clientWorkerGroup,
-                           ConcurrentHashMap<UUID, Channel> remoteChannels) {
+        ProxyServerHandler(Consumer<NetworkEvent> eventConsumer, ConnectionManager connectionManager) {
             this.eventConsumer = eventConsumer;
-            this.clientWorkerGroup = clientWorkerGroup;
-            this.remoteChannels = remoteChannels;
+            this.connectionManager = connectionManager;
         }
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+            this.clientCtx = ctx;
+
             if (request.method() == HttpMethod.CONNECT) {
                 // HTTPS CONNECT прокси
                 handleConnect(ctx, request);
@@ -107,6 +103,9 @@ public class HttpProxyServer {
 
             System.out.println("CONNECT request to: " + uri);
 
+            // Регистрируем канал клиента в менеджере
+            connectionManager.registerClientChannel(connectionId, ctx.channel());
+
             // Отправляем OPEN событие с host:port
             eventConsumer.accept(new ConcreteEvent(
                     connectionId,
@@ -122,10 +121,7 @@ public class HttpProxyServer {
             );
             ctx.writeAndFlush(response);
 
-            // Подготавливаемся к приему DATA от клиента
-            ctx.pipeline().remove(HttpServerCodec.class);
-            ctx.pipeline().remove(HttpObjectAggregator.class);
-            ctx.pipeline().addLast(new TunnelHandler(ctx, connectionId, serial, eventConsumer, null));
+            setupTunnelHandler(ctx);
         }
 
         private void handleHttpRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
@@ -175,6 +171,10 @@ public class HttpProxyServer {
                 }
 
                 connectionId = UUID.randomUUID();
+
+                // Регистрируем канал для ответа
+                connectionManager.registerClientChannel(connectionId, ctx.channel());
+
                 System.out.println("HTTP " + request.method() + " request to: " + host + ":" + port + newUri);
 
                 // Отправляем OPEN событие
@@ -187,7 +187,7 @@ public class HttpProxyServer {
                 ));
 
                 // Сериализуем модифицированный запрос в байты и отправляем как DATA
-                byte[] requestData = serializeHttpRequest(modifiedRequest);
+                byte[] requestData = serializeHttpRequest(request, newUri);
                 eventConsumer.accept(new ConcreteEvent(
                         connectionId,
                         serial.getAndIncrement(),
@@ -197,6 +197,19 @@ public class HttpProxyServer {
 
                 // Для HTTP запросов, после ответа соединение закроется
                 // Добавляем обработчик для получения ответа от удаленного сервера
+                connectionManager.registerResponseCallback(connectionId, event -> {
+                    if (event.getType() == EventType.DATA) {
+                        // Получили ответ от удаленного сервера
+                        System.out.println("Received response, sending to client");
+                        connectionManager.sendToClient(connectionId, event.getPayload());
+                    } else if (event.getType() == EventType.CLOSE || event.getType() == EventType.ABORT) {
+                        // Соединение закрыто
+                        System.out.println("Remote connection closed, closing client connection");
+                        ctx.close();
+                        connectionManager.unregisterClientChannel(connectionId);
+                    }
+                });
+
                 setupHttpResponseHandler(ctx);
 
             } catch (Exception e) {
@@ -205,12 +218,12 @@ public class HttpProxyServer {
             }
         }
 
-        private byte[] serializeHttpRequest(FullHttpRequest request) {
-            // Простая сериализация HTTP запроса в байты
+        private byte[] serializeHttpRequest(FullHttpRequest request, String newUri) {
             StringBuilder sb = new StringBuilder();
-            sb.append(request.method()).append(" ").append(request.uri()).append(" ")
+            sb.append(request.method()).append(" ").append(newUri).append(" ")
                     .append(request.protocolVersion()).append("\r\n");
 
+            // Копируем все заголовки
             for (String name : request.headers().names()) {
                 sb.append(name).append(": ").append(request.headers().get(name)).append("\r\n");
             }
@@ -227,10 +240,14 @@ public class HttpProxyServer {
             return result;
         }
 
-        private void setupHttpResponseHandler(ChannelHandlerContext ctx) {
-            // Временно сохраняем remoteChannel для отправки ответа
-            // Для HTTP мы ждем ответ от remote server через callback
+        private void setupTunnelHandler(ChannelHandlerContext ctx) {
+            // Подготавливаемся к приему DATA от клиента
+            ctx.pipeline().remove(HttpServerCodec.class);
+            ctx.pipeline().remove(HttpObjectAggregator.class);
+            ctx.pipeline().addLast(new TunnelHandler(ctx, connectionId, serial, eventConsumer, connectionManager));
+        }
 
+        private void setupHttpResponseHandler(ChannelHandlerContext ctx) {
             // Добавляем обработчик для получения ответа от клиентской части
             ctx.pipeline().remove(HttpServerCodec.class);
             ctx.pipeline().remove(HttpObjectAggregator.class);
@@ -256,6 +273,7 @@ public class HttpProxyServer {
                         EventType.ABORT,
                         (cause.getMessage() == null ? "ABORT" : cause.getMessage()).getBytes(StandardCharsets.UTF_8)
                 ));
+                connectionManager.unregisterClientChannel(connectionId);
             }
             ctx.close();
         }
@@ -267,37 +285,38 @@ public class HttpProxyServer {
         private final UUID connectionId;
         private final AtomicInteger serial;
         private final Consumer<NetworkEvent> eventConsumer;
-        private final Channel remoteChannel;
+        private final ConnectionManager connectionManager;
 
         TunnelHandler(ChannelHandlerContext clientCtx, UUID connectionId,
                       AtomicInteger serial, Consumer<NetworkEvent> eventConsumer,
-                      Channel remoteChannel) {
+                      ConnectionManager connectionManager) {
             this.clientCtx = clientCtx;
             this.connectionId = connectionId;
             this.serial = serial;
             this.eventConsumer = eventConsumer;
-            this.remoteChannel = remoteChannel;
+            this.connectionManager = connectionManager;
         }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            byte[] data = null;
+
             if (msg instanceof HttpContent) {
-                byte[] data = new byte[((HttpContent) msg).content().readableBytes()];
-                ((HttpContent) msg).content().readBytes(data);
-                if (data.length > 0) {
-                    eventConsumer.accept(new ConcreteEvent(
-                            connectionId,
-                            serial.getAndIncrement(),
-                            EventType.DATA,
-                            data
-                    ));
-                }
-            } else if (msg instanceof byte[]) {
+                HttpContent content = (HttpContent) msg;
+                data = new byte[content.content().readableBytes()];
+                content.content().readBytes(data);
+            } else if (msg instanceof ByteBuf) {
+                ByteBuf buffer = (ByteBuf) msg;
+                data = new byte[buffer.readableBytes()];
+                buffer.readBytes(data);
+            }
+
+            if (data != null && data.length > 0) {
                 eventConsumer.accept(new ConcreteEvent(
                         connectionId,
                         serial.getAndIncrement(),
                         EventType.DATA,
-                        (byte[]) msg
+                        data
                 ));
             } else if (msg instanceof HttpRequest) {
                 // Для HTTP запросов в туннеле (не должно быть)
@@ -307,12 +326,14 @@ public class HttpProxyServer {
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
+            System.out.println("Client channel inactive for connection: " + connectionId);
             eventConsumer.accept(new ConcreteEvent(
                     connectionId,
                     serial.getAndIncrement(),
                     EventType.CLOSE,
                     null
             ));
+            connectionManager.unregisterClientChannel(connectionId);
         }
 
         @Override
@@ -324,6 +345,7 @@ public class HttpProxyServer {
                     EventType.ABORT,
                     (cause.getMessage() == null ? "ABORT" : cause.getMessage()).getBytes(StandardCharsets.UTF_8)
             ));
+            connectionManager.unregisterClientChannel(connectionId);
             ctx.close();
         }
     }
@@ -343,7 +365,7 @@ public class HttpProxyServer {
             // Получили ответ от удаленного сервера через event систему
             // Отправляем клиенту
             clientCtx.writeAndFlush(Unpooled.wrappedBuffer(data));
-        }
+}
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {

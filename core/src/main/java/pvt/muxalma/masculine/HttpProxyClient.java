@@ -104,6 +104,8 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
             conn.getChannel().close();
             System.out.println("Closed connection: " + event.getConnectionId());
         }
+        // Пробрасываем CLOSE дальше в серверную часть
+        upstreamConsumer.accept(event);
     }
 
     public void shutdown() {
@@ -137,7 +139,9 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 byte[] data = new byte[buffer.readableBytes()];
                 buffer.readBytes(data);
 
-                // Отправляем ответ обратно в прокси
+                System.out.println("Received " + data.length + " bytes from remote server for " + connectionId);
+
+                // Отправляем DATA обратно в серверную часть
                 upstreamConsumer.accept(new ConcreteEvent(
                         connectionId,
                         0, // serial можно игнорировать для ответов или сделать отдельный счетчик
@@ -177,6 +181,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
             System.out.println("Remote server connection closed: " + connectionId);
+            // Отправляем CLOSE обратно
             upstreamConsumer.accept(new ConcreteEvent(
                     connectionId,
                     0,

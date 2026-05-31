@@ -1,6 +1,7 @@
 package pvt.muxalma;
 
 import org.junit.jupiter.api.*;
+import pvt.muxalma.feminine.ConnectionManager;
 import pvt.muxalma.feminine.HttpProxyServer;
 import pvt.muxalma.masculine.HttpProxyClient;
 import pvt.muxalma.masculine.OrderingProcessor;
@@ -37,7 +38,7 @@ public class ProxyIntegrationTest {
         parallel = new ParallelProcessor(ordered);
         Consumer<NetworkEvent> valid = new ValidationProcessor(
                 parallel, clientEventConsumer);
-        server = new HttpProxyServer(18080, valid);
+        server = new HttpProxyServer(18080, valid, new ConnectionManager());
         server.start();
         
         // Даем время на запуск

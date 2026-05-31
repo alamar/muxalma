@@ -4,6 +4,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import pvt.muxalma.feminine.ConnectionManager;
 import pvt.muxalma.feminine.HttpProxyServer;
 import pvt.muxalma.masculine.ConnectionEvent;
 import pvt.muxalma.masculine.OrderingProcessor;
@@ -15,61 +16,41 @@ import pvt.muxalma.model.NetworkEvent;
 
 public class Main {
     public static void main(String[] args) throws InterruptedException {
-        // Хранилище для каналов, чтобы отправлять ответы обратно клиентам
-        ConcurrentHashMap<UUID, ResponseHandler> responseHandlers = new ConcurrentHashMap<>();
+        // Создаем менеджер соединений
+        ConnectionManager connectionManager = new ConnectionManager();
 
-        // Обработчик ответов от клиента (папа) к серверу (мама)
-        Consumer<NetworkEvent> clientToServer = event -> {
-            System.out.println("Response from client: " + event);
+        // Обработчик ответов от клиентской части (папа)
+        // Сюда приходят ответы от удаленного сервера
+        Consumer<NetworkEvent> clientResponseHandler = event -> {
+            System.out.println("Response from client: " + event.getType() +
+                    " for " + event.getConnectionId());
 
-            ResponseHandler handler = responseHandlers.get(event.getConnectionId());
-            if (handler != null && event.getType() == EventType.DATA) {
-                handler.onResponse(event.getPayload());
-            } else if (event.getType() == EventType.CLOSE) {
-                ResponseHandler closed = responseHandlers.remove(event.getConnectionId());
-                if (closed != null) {
-                    closed.onClose();
-                }
-            }
+            // Передаем ответ в менеджер, который отправит его клиенту
+            connectionManager.onResponseReceived(event);
         };
 
-        // Создаем прокси клиент
-        HttpProxyClient proxyClient = new HttpProxyClient(clientToServer);
+        // Создаем прокси клиента
+        HttpProxyClient proxyClient = new HttpProxyClient(clientResponseHandler);
 
-        // Обработчик событий от сервера (мама) к клиенту (папа)
-        Consumer<ConnectionEvent> serverToClient = event -> {
-            System.out.println("Request from server: " + event);
+        // Обработчик событий от серверной части (мама)
+        // Сюда приходят запросы от клиента браузера
+        Consumer<ConnectionEvent> serverRequestHandler = event -> {
+            System.out.println("Request from server: " + event.getType() +
+                    " for " + event.getConnectionId());
 
-            if (event.getType() == EventType.OPEN) {
-                // Создаем обработчик для этого соединения
-                ResponseHandler handler = new ResponseHandler() {
-                    @Override
-                    public void onResponse(byte[] data) {
-                        // Отправляем ответ обратно в серверную часть
-                        // Здесь нужно будет вызвать callback на сервере
-                        System.out.println("Would send response to server");
-                    }
-
-                    @Override
-                    public void onClose() {
-                        System.out.println("Connection closed");
-                    }
-                };
-                responseHandlers.put(event.getConnectionId(), handler);
-            }
-
-            // Передаем событие клиенту для обработки
+            // Передаем событие прокси клиенту для обработки
             proxyClient.accept(event);
         };
 
+
         // Создаём цепочку для обработки событий
-        OrderingProcessor ordered = new OrderingProcessor(serverToClient);
+        OrderingProcessor ordered = new OrderingProcessor(serverRequestHandler);
         ParallelProcessor parallel = new ParallelProcessor(ordered);
         Consumer<NetworkEvent> valid = new ValidationProcessor(
-                parallel, clientToServer);
+                parallel, clientResponseHandler);
 
         // Запускаем прокси-сервер
-        HttpProxyServer server = new HttpProxyServer(8080, valid);
+        HttpProxyServer server = new HttpProxyServer(8080, valid, connectionManager);
         server.start();
 
         System.out.println("========================================");
