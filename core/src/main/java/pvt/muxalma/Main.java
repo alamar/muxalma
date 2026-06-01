@@ -16,13 +16,13 @@ public class Main {
         ConnectionManager connectionManager = new ConnectionManager();
 
         // Создаем прокси клиента
-        HttpProxyClient proxyClient = new HttpProxyClient(connectionManager::onResponseReceived);
+        HttpProxyClient proxyClient = new HttpProxyClient(connectionManager);
 
         // Создаём цепочку для обработки событий
-        OrderingProcessor ordered = new OrderingProcessor(proxyClient::accept);
+        OrderingProcessor ordered = new OrderingProcessor(proxyClient);
         ParallelProcessor parallel = new ParallelProcessor(ordered);
         Consumer<NetworkEvent> valid = new ValidationProcessor(
-                parallel, connectionManager::onResponseReceived);
+                parallel, connectionManager);
 
         // Запускаем прокси-сервер
         HttpProxyServer server = new HttpProxyServer(18080, valid, connectionManager);
@@ -44,10 +44,5 @@ public class Main {
 
         // Ждем бесконечно
         Thread.currentThread().join();
-    }
-
-    interface ResponseHandler {
-        void onResponse(byte[] data);
-        void onClose();
     }
 }

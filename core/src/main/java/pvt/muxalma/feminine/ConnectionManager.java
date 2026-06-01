@@ -9,8 +9,9 @@ import pvt.muxalma.model.NetworkEvent;
 
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
-public class ConnectionManager {
+public class ConnectionManager implements Consumer<NetworkEvent> {
     private static Logger log = LoggerFactory.getLogger(ConnectionManager.class);
 
     // Маппинг connectionId -> Netty channel клиента (кто запросил)
@@ -54,7 +55,7 @@ public class ConnectionManager {
         pendingResponses.put(connectionId, callback);
     }
     
-    public void onResponseReceived(NetworkEvent event) {
+    public void accept(NetworkEvent event) {
         ResponseCallback callback = pendingResponses.get(event.getConnectionId());
         if (callback != null) {
             callback.onResponse(event);
