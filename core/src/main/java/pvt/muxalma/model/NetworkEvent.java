@@ -10,4 +10,8 @@ public interface NetworkEvent {
     EventType getType();
 
     byte[] getPayload();
+
+    static NetworkEvent create(UUID connectionId, int serial, EventType type, byte[] payload) {
+        return new ConcreteEvent(connectionId, serial, type, payload);
+    }
 }

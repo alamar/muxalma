@@ -32,12 +32,11 @@ public class ProxyIntegrationTest {
     @BeforeAll
     void setup() throws InterruptedException {
         connectionManager = new ConnectionManager();
-        client = new HttpProxyClient(connectionManager::onResponseReceived);
+        client = new HttpProxyClient(connectionManager);
         // Создаём цепочку для обработки событий
         OrderingProcessor ordered = new OrderingProcessor(client);
         parallel = new ParallelProcessor(ordered);
-        Consumer<NetworkEvent> valid = new ValidationProcessor(
-                parallel, connectionManager::onResponseReceived);
+        Consumer<NetworkEvent> valid = new ValidationProcessor(parallel, connectionManager);
         server = new HttpProxyServer(18080, valid, connectionManager);
         server.start();
         
