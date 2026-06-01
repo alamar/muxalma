@@ -1,23 +1,34 @@
 package pvt.muxalma.masculine;
 
-import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.http.*;
-import pvt.muxalma.model.ConcreteEvent;
-import pvt.muxalma.model.EventType;
-import pvt.muxalma.model.NetworkEvent;
-
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import pvt.muxalma.model.ConcreteEvent;
+import pvt.muxalma.model.EventType;
+import pvt.muxalma.model.NetworkEvent;
+
 public class HttpProxyClient implements Consumer<ConnectionEvent> {
+    private static Logger log = LoggerFactory.getLogger(HttpProxyClient.class);
+
     private final Consumer<NetworkEvent> upstreamConsumer;
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
     private final ConcurrentHashMap<UUID, ClientConnection> connections = new ConcurrentHashMap<>();
@@ -28,7 +39,6 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
 
     @Override
     public void accept(ConnectionEvent event) {
-        System.err.println(event);
         switch (event.getType()) {
             case OPEN:
                 handleOpen(event);
@@ -37,6 +47,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 handleData(event);
                 break;
             case CLOSE:
+            case ABORT:
                 handleClose(event);
                 break;
         }
@@ -48,7 +59,9 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         String host = parts[0];
         int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 80;
 
-        System.out.println("Client opening connection to: " + host + ":" + port);
+        if (log.isDebugEnabled()) {
+            log.debug("Client opening connection to: {}:{}", host, port);
+        }
 
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(workerGroup)
@@ -68,10 +81,14 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         future.addListener((ChannelFutureListener) f -> {
             if (f.isSuccess()) {
                 conn.setChannel(f.channel());
-                System.out.println("Connected to remote server: " + host + ":" + port);
+                if (log.isDebugEnabled()) {
+                    log.debug("Connected to remote server: {}:{}", host, port);
+                }
                 event.getState().nowOpen();
             } else {
-                System.err.println("Failed to connect to " + hostPort + ": " + f.cause());
+                if (log.isDebugEnabled()) {
+                    log.debug("Failed to connect to {}", hostPort, f.cause());
+                }
                 connections.remove(event.getConnectionId()); // TODO notify OrderingProcessor to drop events
                 upstreamConsumer.accept(new ConcreteEvent(
                         event.getConnectionId(),
@@ -91,10 +108,12 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
             if (payload != null && payload.length > 0) {
                 ByteBuf buffer = Unpooled.wrappedBuffer(payload);
                 conn.getChannel().writeAndFlush(buffer);
-                System.out.println("Sent " + payload.length + " bytes to remote server");
+                if (log.isDebugEnabled()) {
+                    log.debug("Sent {} bytes to remote server", payload.length);
+                }
             }
         } else {
-            System.err.println("No active connection for DATA event: " + event.getConnectionId());
+            log.info("No active connection for DATA event: {}", event.getConnectionId());
         }
     }
 
@@ -102,7 +121,9 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         ClientConnection conn = connections.remove(event.getConnectionId());
         if (conn != null && conn.getChannel() != null) {
             conn.getChannel().close();
-            System.out.println("Closed connection: " + event.getConnectionId());
+            if (log.isDebugEnabled()) {
+                log.debug("Closed connection: {}", event.getConnectionId());
+            }
         }
         // Пробрасываем CLOSE дальше в серверную часть
         upstreamConsumer.accept(event);
@@ -139,7 +160,9 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 byte[] data = new byte[buffer.readableBytes()];
                 buffer.readBytes(data);
 
-                System.out.println("Received " + data.length + " bytes from remote server for " + connectionId);
+                if (log.isDebugEnabled()) {
+                    log.debug("Received {} bytes from remote server for {}", data.length, connectionId);
+                }
 
                 // Отправляем DATA обратно в серверную часть
                 upstreamConsumer.accept(new ConcreteEvent(
@@ -148,8 +171,6 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                         EventType.DATA,
                         data
                 ));
-
-                System.out.println("Received " + data.length + " bytes from remote server");
             } else if (msg instanceof HttpResponse) {
                 // Для HTTP ответов, парсим и отправляем
                 // В реальном коде лучше использовать HttpObjectAggregator
@@ -174,13 +195,13 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                         fullResponse.getBytes(StandardCharsets.UTF_8)
                 ));
             } else {
-                System.err.println("Unknown message type: " + msg.getClass());
+                log.warn("Unknown message type: {}", msg.getClass());
             }
         }
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
-            System.out.println("Remote server connection closed: " + connectionId);
+            log.info("Remote server connection closed due to inactivity: {}", connectionId);
             // Отправляем CLOSE обратно
             upstreamConsumer.accept(new ConcreteEvent(
                     connectionId,
@@ -192,8 +213,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            System.err.println("Error in remote connection: " + cause.getMessage());
-            cause.printStackTrace();
+            log.warn("Error in remote connection", cause);
             upstreamConsumer.accept(new ConcreteEvent(
                     connectionId,
                     0,

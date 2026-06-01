@@ -1,26 +1,48 @@
 package pvt.muxalma.feminine;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pvt.muxalma.model.ConcreteEvent;
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-
 public class HttpProxyServer {
+    private static Logger log = LoggerFactory.getLogger(HttpProxyServer.class);
+
     private final int port;
     private final Consumer<NetworkEvent> eventConsumer;
     private final ConnectionManager connectionManager;
@@ -54,7 +76,7 @@ public class HttpProxyServer {
                 });
 
         channel = bootstrap.bind(port).sync().channel();
-        System.out.println("HTTP Proxy Server started on port " + port);
+        log.info("HTTP Proxy Server started on port {}", port);
     }
 
     public void stop() {
@@ -101,7 +123,9 @@ public class HttpProxyServer {
             connectionId = UUID.randomUUID();
             isConnect = true;
 
-            System.out.println("CONNECT request to: " + uri);
+            if (log.isDebugEnabled()) {
+                log.debug("CONNECT request to: {}", uri);
+            }
 
             // Регистрируем канал клиента в менеджере
             connectionManager.registerClientChannel(connectionId, ctx.channel());
@@ -153,7 +177,6 @@ public class HttpProxyServer {
 
                 // Модифицируем запрос - убираем схему и хост из URI
                 String newUri = slashIndex > 0 ? uri.substring(slashIndex) : "/";
-                if (newUri.isEmpty()) newUri = "/";
 
                 // Создаем новый запрос с исправленным URI
                 FullHttpRequest modifiedRequest = new DefaultFullHttpRequest(
@@ -175,7 +198,9 @@ public class HttpProxyServer {
                 // Регистрируем канал для ответа
                 connectionManager.registerClientChannel(connectionId, ctx.channel());
 
-                System.out.println("HTTP " + request.method() + " request to: " + host + ":" + port + newUri);
+                if (log.isDebugEnabled()) {
+                    log.debug("HTTP {} request to: {}:{}{}", request.method(), host, port, newUri);
+                }
 
                 // Отправляем OPEN событие
                 String targetHostPort = host + ":" + port;
@@ -199,21 +224,23 @@ public class HttpProxyServer {
                 // Добавляем обработчик для получения ответа от удаленного сервера
                 connectionManager.registerResponseCallback(connectionId, event -> {
                     if (event.getType() == EventType.DATA) {
-                        // Получили ответ от удаленного сервера
-                        System.out.println("Received response, sending to client");
+                        if (log.isDebugEnabled()) {
+                            log.debug("Received response len = {}, sending to client {}",
+                                    event.getPayload().length, connectionId);
+                        }
                         connectionManager.sendToClient(connectionId, event.getPayload());
                     } else if (event.getType() == EventType.CLOSE || event.getType() == EventType.ABORT) {
-                        // Соединение закрыто
-                        System.out.println("Remote connection closed, closing client connection");
+                        if (log.isDebugEnabled()) {
+                            log.debug("Remote connection closed, closing client connection {}", connectionId);
+                        }
                         ctx.close();
                         connectionManager.unregisterClientChannel(connectionId);
                     }
                 });
 
                 setupHttpResponseHandler(ctx);
-
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("While handling http request to {}", request.uri(), e);
                 sendError(ctx, HttpResponseStatus.BAD_REQUEST, "Invalid request: " + e.getMessage());
             }
         }
@@ -320,13 +347,13 @@ public class HttpProxyServer {
                 ));
             } else if (msg instanceof HttpRequest) {
                 // Для HTTP запросов в туннеле (не должно быть)
-                System.err.println("Unexpected HttpRequest in tunnel");
+                log.warn("Unexpected HttpRequest in tunnel");
             }
         }
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
-            System.out.println("Client channel inactive for connection: " + connectionId);
+            log.info("Client channel inactive for connection: {}", connectionId);
             eventConsumer.accept(new ConcreteEvent(
                     connectionId,
                     serial.getAndIncrement(),
@@ -338,7 +365,7 @@ public class HttpProxyServer {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            cause.printStackTrace();
+            log.warn("Exception caught", cause);
             eventConsumer.accept(new ConcreteEvent(
                     connectionId,
                     serial.getAndIncrement(),
@@ -375,7 +402,7 @@ public class HttpProxyServer {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            cause.printStackTrace();
+            log.warn("Exception caught", cause);
             clientCtx.close();
         }
     }

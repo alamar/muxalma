@@ -2,6 +2,8 @@ package pvt.muxalma.feminine;
 
 import io.netty.channel.Channel;
 import io.netty.buffer.Unpooled;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
@@ -9,6 +11,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ConnectionManager {
+    private static Logger log = LoggerFactory.getLogger(ConnectionManager.class);
+
     // Маппинг connectionId -> Netty channel клиента (кто запросил)
     private final ConcurrentHashMap<UUID, Channel> clientChannels = new ConcurrentHashMap<>();
     
@@ -17,13 +21,17 @@ public class ConnectionManager {
     
     public void registerClientChannel(UUID connectionId, Channel channel) {
         clientChannels.put(connectionId, channel);
-        System.out.println("Registered channel for connection: " + connectionId);
+        if (log.isDebugEnabled()) {
+            log.debug("Registered channel for connection: {}", connectionId);
+        }
     }
     
     public void unregisterClientChannel(UUID connectionId) {
         clientChannels.remove(connectionId);
         pendingResponses.remove(connectionId);
-        System.out.println("Unregistered channel for connection: " + connectionId);
+        if (log.isDebugEnabled()) {
+            log.debug("Unregistered channel for connection: {}", connectionId);
+        }
     }
     
     public void sendToClient(UUID connectionId, byte[] data) {
@@ -31,12 +39,14 @@ public class ConnectionManager {
         try {
             if (channel != null && channel.isActive()) {
                 channel.writeAndFlush(Unpooled.wrappedBuffer(data)).sync();
-                System.out.println("Sent " + data.length + " bytes to client for connection: " + connectionId);
+                if (log.isDebugEnabled()) {
+                    log.debug("Sent {} bytes to client for connection: {}", data.length, connectionId);
+                }
             } else {
-                System.err.println("No active channel for connection: " + connectionId);
+                log.info("No active channel for connection: {}", connectionId);
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            log.warn("While sending data to {}", connectionId, e);
         }
     }
     

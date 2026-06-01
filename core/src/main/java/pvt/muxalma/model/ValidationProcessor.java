@@ -16,14 +16,14 @@ public class ValidationProcessor extends ProcessorPushbackSupport {
     @Override
     public void accept(NetworkEvent event) {
         if (event.getConnectionId() == null || event.getType() == null) {
-            System.err.println("Invalid event: " + event);
+            log.warn("Invalid event: {}", event);
             return;
         }
 
         if (event.getType() == EventType.ABORT) {
             // Everything is allowed, nothing to check
-            System.err.println(event.getConnectionId() + ": " +
-                    (event.getPayload() == null ? "ABORT" : new String(event.getPayload())));
+            log.warn("{}: {}", event.getConnectionId(),
+                    event.getPayload() == null ? "ABORT" : new String(event.getPayload()));
             downstream.accept(event);
         }
 

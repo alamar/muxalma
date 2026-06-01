@@ -7,13 +7,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pvt.muxalma.model.NetworkEvent;
 
 public class OrderingProcessor implements Consumer<NetworkEvent> {
+    private static Logger log = LoggerFactory.getLogger(HttpProxyClient.class);
+
     private final Consumer<? super ConnectionEvent> downstream;
     private final Map<UUID, ConnectionState> connections = new ConcurrentHashMap<>();
-    // TODO handle stale connections? See shutdown() below
-    //private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public OrderingProcessor(Consumer<? super ConnectionEvent> downstream) {
         this.downstream = downstream;
@@ -42,7 +44,7 @@ public class OrderingProcessor implements Consumer<NetworkEvent> {
             } else if (event.getSerial() > nextExpectedSerial) {
                 pendingEvents.offer(event);
             } else {
-                System.out.println(event.getConnectionId() + ": duplicate serial = " + event.getSerial());
+                log.warn("{}: duplicate serial = {}", event.getConnectionId(), event.getSerial());
             }
         }
 
@@ -58,15 +60,12 @@ public class OrderingProcessor implements Consumer<NetworkEvent> {
         // OPEN is blocking operation so DATA must wait until it is complete
         // TODO add backpressure for DATA as well? How would it look like...
         public synchronized void nowOpen() {
-            if (isOpen)
-                System.err.println("Now open but already open");
+            if (isOpen) {
+                log.warn("Now open but was already open");
+            }
             isOpen = true;
             nextExpectedSerial++;
             processPending();
         }
     }
-    
-    //public void shutdown() {
-    //    executor.shutdown();
-    //}
 }
