@@ -4,12 +4,13 @@ import java.util.UUID;
 
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
+import pvt.muxalma.processor.WaitingForOpenOrderingProcessor;
 
 public class ConnectionEvent implements NetworkEvent {
     private final NetworkEvent event;
-    private final OrderingProcessor.ConnectionState state;
+    private final WaitingForOpenOrderingProcessor.ConnectionState state;
 
-    public ConnectionEvent(NetworkEvent event, OrderingProcessor.ConnectionState state) {
+    public ConnectionEvent(NetworkEvent event, WaitingForOpenOrderingProcessor.ConnectionState state) {
         this.event = event;
         this.state = state;
     }
@@ -34,7 +35,7 @@ public class ConnectionEvent implements NetworkEvent {
         return event.getPayload();
     }
 
-    public OrderingProcessor.ConnectionState getState() {
+    public WaitingForOpenOrderingProcessor.ConnectionState getState() {
         return state;
     }
 

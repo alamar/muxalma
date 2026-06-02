@@ -40,8 +40,8 @@ import pvt.muxalma.model.ConcreteEvent;
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
-public class HttpProxyServer {
-    private static Logger log = LoggerFactory.getLogger(HttpProxyServer.class);
+public class HttpProxyServer implements Consumer<NetworkEvent> {
+    private static final Logger log = LoggerFactory.getLogger(HttpProxyServer.class);
 
     private final int port;
     private final Consumer<NetworkEvent> eventConsumer;
@@ -50,10 +50,10 @@ public class HttpProxyServer {
     private EventLoopGroup workerGroup;
     private Channel channel;
 
-    public HttpProxyServer(int port, Consumer<NetworkEvent> eventConsumer, ConnectionManager connectionManager) {
+    public HttpProxyServer(int port, Consumer<NetworkEvent> eventConsumer) {
+        this.connectionManager = new ConnectionManager();
         this.port = port;
         this.eventConsumer = eventConsumer;
-        this.connectionManager = connectionManager;
     }
 
     public void start() throws InterruptedException {
@@ -77,6 +77,11 @@ public class HttpProxyServer {
 
         channel = bootstrap.bind(port).sync().channel();
         log.info("HTTP Proxy Server started on port {}", port);
+    }
+
+    @Override
+    public void accept(NetworkEvent event) {
+        connectionManager.accept(event);
     }
 
     public void stop() {

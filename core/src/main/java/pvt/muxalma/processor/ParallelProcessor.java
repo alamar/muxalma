@@ -1,4 +1,4 @@
-package pvt.muxalma.masculine;
+package pvt.muxalma.processor;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

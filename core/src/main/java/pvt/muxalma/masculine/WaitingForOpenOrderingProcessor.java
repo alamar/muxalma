@@ -1,4 +1,4 @@
-package pvt.muxalma.masculine;
+package pvt.muxalma.processor;
 
 import java.util.Comparator;
 import java.util.Map;
@@ -9,22 +9,29 @@ import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import pvt.muxalma.masculine.ConnectionEvent;
+import pvt.muxalma.masculine.HttpProxyClient;
+import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
-public class OrderingProcessor implements Consumer<NetworkEvent> {
-    private static Logger log = LoggerFactory.getLogger(HttpProxyClient.class);
+public class WaitingForOpenOrderingProcessor implements Consumer<NetworkEvent> {
+    private static final Logger log = LoggerFactory.getLogger(HttpProxyClient.class);
 
     private final Consumer<? super ConnectionEvent> downstream;
     private final Map<UUID, ConnectionState> connections = new ConcurrentHashMap<>();
 
-    public OrderingProcessor(Consumer<? super ConnectionEvent> downstream) {
+    public WaitingForOpenOrderingProcessor(Consumer<? super ConnectionEvent> downstream) {
         this.downstream = downstream;
     }
     
     @Override
     public void accept(NetworkEvent event) {
         connections.compute(event.getConnectionId(), (uuid, existing) ->
-                existing == null ? new ConnectionState() : existing).addEvent(event);
+                existing == null ? newConnection() : existing).addEvent(event);
+    }
+
+    private ConnectionState newConnection() {
+        return new ConnectionState();
     }
 
     public class ConnectionState {
@@ -35,11 +42,15 @@ public class OrderingProcessor implements Consumer<NetworkEvent> {
         );
 
         private synchronized void addEvent(NetworkEvent event) {
-            if (event.getSerial() == nextExpectedSerial) {
+            if (event.getType() == EventType.ABORT) {
+                downstream.accept(new ConnectionEvent(event, this));
+            } else if (event.getSerial() == nextExpectedSerial) {
                 downstream.accept(new ConnectionEvent(event, this));
                 if (isOpen) {
                     nextExpectedSerial++;
                     processPending();
+                } else if (event.getType() != EventType.OPEN || event.getSerial() != 0) {
+                    log.warn("Ignoring event but it is not OPEN with serial = 0: {}", event);
                 }
             } else if (event.getSerial() > nextExpectedSerial) {
                 pendingEvents.offer(event);

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public class ConnectionManager implements Consumer<NetworkEvent> {
-    private static Logger log = LoggerFactory.getLogger(ConnectionManager.class);
+    private static final Logger log = LoggerFactory.getLogger(ConnectionManager.class);
 
     // Маппинг connectionId -> Netty channel клиента (кто запросил)
     private final ConcurrentHashMap<UUID, Channel> clientChannels = new ConcurrentHashMap<>();

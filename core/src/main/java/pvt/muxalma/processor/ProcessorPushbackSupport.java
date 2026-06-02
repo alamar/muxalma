@@ -1,4 +1,4 @@
-package pvt.muxalma.model;
+package pvt.muxalma.processor;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -6,10 +6,12 @@ import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pvt.muxalma.masculine.HttpProxyClient;
+import pvt.muxalma.model.ConcreteEvent;
+import pvt.muxalma.model.EventType;
+import pvt.muxalma.model.NetworkEvent;
 
 public abstract class ProcessorPushbackSupport implements Consumer<NetworkEvent> {
-    protected Logger log = LoggerFactory.getLogger(getClass());
+    protected final Logger log = LoggerFactory.getLogger(getClass());
 
     protected final Consumer<NetworkEvent> pushback;
 

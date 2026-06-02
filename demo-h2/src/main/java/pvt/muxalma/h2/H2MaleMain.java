@@ -1,27 +1,13 @@
 package pvt.muxalma.h2;
 
-import java.util.function.Consumer;
-
-import pvt.muxalma.masculine.HttpProxyClient;
-import pvt.muxalma.masculine.OrderingProcessor;
-import pvt.muxalma.masculine.ParallelProcessor;
-import pvt.muxalma.model.NetworkEvent;
-import pvt.muxalma.model.ValidationProcessor;
+import pvt.muxalma.fanservice.Lifecycle;
+import pvt.muxalma.fanservice.Muxalma;
 
 public class H2MaleMain {
     public static void main(String[] args) throws Exception {
-        H2Storage storage = new H2Storage("build/db", "male_storage");
-
-        // Создаем прокси клиента
-        HttpProxyClient proxyClient = new HttpProxyClient(storage);
-
-        // Создаём цепочку для обработки событий
-        OrderingProcessor ordered = new OrderingProcessor(proxyClient);
-        ParallelProcessor parallel = new ParallelProcessor(ordered);
-        Consumer<NetworkEvent> valid = new ValidationProcessor(
-                parallel, storage);
-
-        H2Retrieval retrieval = new H2Retrieval("build/db", "female_storage", valid);
+        Lifecycle lifecycle = new Lifecycle();
+        H2Retrieval retrieval = new H2Retrieval("build/db", "female_storage",
+                Muxalma.male(new H2Storage("build/db", "male_storage"), lifecycle));
 
         retrieval.start();
 
@@ -33,8 +19,8 @@ public class H2MaleMain {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Shutting down proxy...");
             retrieval.stop();
-            // TODO stop client
-            System.out.println("Proxy stopped");
+            lifecycle.stop();
+            System.out.println("Relay stopped");
         }));
 
         // Ждем бесконечно

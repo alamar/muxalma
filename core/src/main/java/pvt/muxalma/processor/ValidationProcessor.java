@@ -1,8 +1,9 @@
-package pvt.muxalma.model;
+package pvt.muxalma.processor;
 
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.function.Consumer;
+
+import pvt.muxalma.model.EventType;
+import pvt.muxalma.model.NetworkEvent;
 
 public class ValidationProcessor extends ProcessorPushbackSupport {
     private final Consumer<NetworkEvent> downstream;

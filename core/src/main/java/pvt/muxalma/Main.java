@@ -2,31 +2,23 @@ package pvt.muxalma;
 
 import java.util.function.Consumer;
 
-import pvt.muxalma.feminine.ConnectionManager;
-import pvt.muxalma.feminine.HttpProxyServer;
-import pvt.muxalma.masculine.HttpProxyClient;
-import pvt.muxalma.masculine.OrderingProcessor;
-import pvt.muxalma.masculine.ParallelProcessor;
+import pvt.muxalma.fanservice.Lifecycle;
+import pvt.muxalma.fanservice.Loopback;
+import pvt.muxalma.fanservice.Muxalma;
 import pvt.muxalma.model.NetworkEvent;
-import pvt.muxalma.model.ValidationProcessor;
 
 public class Main {
     public static void main(String[] args) throws InterruptedException {
-        // Создаем менеджер соединений
-        ConnectionManager connectionManager = new ConnectionManager();
+        Lifecycle lifecycle = new Lifecycle();
 
-        // Создаем прокси клиента
-        HttpProxyClient proxyClient = new HttpProxyClient(connectionManager);
+        // Создаем петлю
+        Loopback loopback = new Loopback();
 
-        // Создаём цепочку для обработки событий
-        OrderingProcessor ordered = new OrderingProcessor(proxyClient);
-        ParallelProcessor parallel = new ParallelProcessor(ordered);
-        Consumer<NetworkEvent> valid = new ValidationProcessor(
-                parallel, connectionManager);
+        // Создаем прокси-клиента "папа", которому пока некому отвечать
+        Consumer<NetworkEvent> proxyClient = Muxalma.male(loopback, lifecycle);
 
-        // Запускаем прокси-сервер
-        HttpProxyServer server = new HttpProxyServer(18080, valid, connectionManager);
-        server.start();
+        // Запускаем прокси-сервер "мама", и теперь они могут общаться
+        loopback.initialize(Muxalma.female(18080, proxyClient, lifecycle));
 
         System.out.println("========================================");
         System.out.println("HTTP Filtering Proxy is running on port 8080");
@@ -36,9 +28,7 @@ public class Main {
         // Добавляем обработчик завершения
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Shutting down proxy...");
-            server.stop();
-            proxyClient.shutdown();
-            parallel.shutdown();
+            lifecycle.stop();
             System.out.println("Proxy stopped");
         }));
 

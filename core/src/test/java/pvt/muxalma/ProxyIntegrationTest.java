@@ -11,34 +11,27 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import pvt.muxalma.feminine.ConnectionManager;
-import pvt.muxalma.feminine.HttpProxyServer;
-import pvt.muxalma.masculine.HttpProxyClient;
-import pvt.muxalma.masculine.OrderingProcessor;
-import pvt.muxalma.masculine.ParallelProcessor;
+import pvt.muxalma.fanservice.Lifecycle;
+import pvt.muxalma.fanservice.Loopback;
+import pvt.muxalma.fanservice.Muxalma;
 import pvt.muxalma.model.NetworkEvent;
-import pvt.muxalma.model.ValidationProcessor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ProxyIntegrationTest {
-    
-    private HttpProxyServer server;
-    private HttpProxyClient client;
-    private ParallelProcessor parallel;
-    private ConnectionManager connectionManager;
+    private Lifecycle lifecycle = new Lifecycle();
 
     @BeforeAll
     void setup() throws InterruptedException {
-        connectionManager = new ConnectionManager();
-        client = new HttpProxyClient(connectionManager);
-        // Создаём цепочку для обработки событий
-        OrderingProcessor ordered = new OrderingProcessor(client);
-        parallel = new ParallelProcessor(ordered);
-        Consumer<NetworkEvent> valid = new ValidationProcessor(parallel, connectionManager);
-        server = new HttpProxyServer(18080, valid, connectionManager);
-        server.start();
+        // Создаем петлю
+        Loopback loopback = new Loopback();
+
+        // Создаем прокси-клиента "папа", которому пока некому отвечать
+        Consumer<NetworkEvent> proxyClient = Muxalma.male(loopback, lifecycle);
+
+        // Запускаем прокси-сервер "мама", и теперь они могут общаться
+        loopback.initialize(Muxalma.female(18080, proxyClient, lifecycle));
         
         // Даем время на запуск
         Thread.sleep(1000);
@@ -46,9 +39,7 @@ public class ProxyIntegrationTest {
     
     @AfterAll
     void cleanup() {
-        server.stop();
-        client.shutdown();
-        parallel.shutdown();
+        lifecycle.stop();
     }
     
     @Test

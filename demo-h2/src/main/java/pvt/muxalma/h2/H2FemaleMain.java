@@ -1,20 +1,15 @@
 package pvt.muxalma.h2;
 
-import pvt.muxalma.feminine.ConnectionManager;
+import pvt.muxalma.fanservice.Lifecycle;
+import pvt.muxalma.fanservice.Muxalma;
 import pvt.muxalma.feminine.HttpProxyServer;
 
 public class H2FemaleMain {
     public static void main(String[] args) throws Exception {
-        // Создаем менеджер соединений
-        ConnectionManager connectionManager = new ConnectionManager();
+        Lifecycle lifecycle = new Lifecycle();
+        H2Retrieval retrieval = new H2Retrieval("build/db", "male_storage",
+                Muxalma.female(18080, new H2Storage("build/db", "female_storage"), lifecycle));
 
-        H2Retrieval retrieval = new H2Retrieval("build/db", "male_storage", connectionManager);
-
-        H2Storage storage = new H2Storage("build/db", "female_storage");
-
-        // Запускаем прокси-сервер
-        HttpProxyServer server = new HttpProxyServer(18080, storage, connectionManager);
-        server.start();
         retrieval.start();
 
         System.out.println("========================================");
@@ -26,7 +21,7 @@ public class H2FemaleMain {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Shutting down proxy...");
             retrieval.stop();
-            server.stop();
+            lifecycle.stop();
             System.out.println("Proxy stopped");
         }));
 
