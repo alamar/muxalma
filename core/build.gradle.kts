@@ -1,9 +1,6 @@
 plugins {
-    id("java")
     id("application")
 }
-
-group = "pvt.muxalma"
 
 repositories {
     mavenCentral()

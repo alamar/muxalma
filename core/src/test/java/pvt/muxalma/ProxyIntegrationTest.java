@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ProxyIntegrationTest {
-    private Lifecycle lifecycle = new Lifecycle();
+    private final Lifecycle lifecycle = new Lifecycle();
 
     @BeforeAll
     void setup() throws InterruptedException {
