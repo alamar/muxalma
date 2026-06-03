@@ -9,6 +9,10 @@ subprojects {
     apply(plugin = "java")
     apply(plugin = "maven-publish")
 
+    java {
+        withSourcesJar()
+    }
+
     configure<PublishingExtension> {
         publications {
             create<MavenPublication>("maven") {
