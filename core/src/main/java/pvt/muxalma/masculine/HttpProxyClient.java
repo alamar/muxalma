@@ -3,6 +3,7 @@ package pvt.muxalma.masculine;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import io.netty.bootstrap.Bootstrap;
@@ -147,7 +148,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         private final UUID connectionId;
         private final Consumer<NetworkEvent> upstreamConsumer;
         private final StringBuilder responseBuilder = new StringBuilder();
-        private int serial = 0;
+        private AtomicInteger serial = new AtomicInteger();
 
         RemoteServerHandler(UUID connectionId, Consumer<NetworkEvent> upstreamConsumer) {
             this.connectionId = connectionId;
@@ -167,7 +168,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 // Отправляем DATA обратно в серверную часть
                 upstreamConsumer.accept(new ConcreteEvent(
                         connectionId,
-                        serial++,
+                        serial.getAndIncrement(),
                         EventType.DATA,
                         data
                 ));
@@ -192,7 +193,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 String fullResponse = responseBuilder.toString() + new String(contentBytes, StandardCharsets.UTF_8);
                 upstreamConsumer.accept(new ConcreteEvent(
                         connectionId,
-                        serial++,
+                        serial.getAndIncrement(),
                         EventType.DATA,
                         fullResponse.getBytes(StandardCharsets.UTF_8)
                 ));
@@ -207,7 +208,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
             // Отправляем CLOSE обратно
             upstreamConsumer.accept(new ConcreteEvent(
                     connectionId,
-                    serial++,
+                    serial.getAndIncrement(),
                     EventType.CLOSE,
                     null
             ));
@@ -218,7 +219,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
             log.warn("Error in remote connection", cause);
             upstreamConsumer.accept(new ConcreteEvent(
                     connectionId,
-                    serial++,
+                    serial.getAndIncrement(),
                     EventType.ABORT,
                     null
             ));
