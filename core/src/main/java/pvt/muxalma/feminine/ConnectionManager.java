@@ -64,8 +64,15 @@ public class ConnectionManager implements Consumer<NetworkEvent> {
             // Отправляем напрямую клиенту
             if (event.getType() == EventType.DATA) {
                 sendToClient(event.getConnectionId(), event.getPayload());
+                if (log.isDebugEnabled()) {
+                    log.debug("Received response len = {}, sending to client {}",
+                            event.getPayload().length, event.getConnectionId());
+                }
             } else if (event.getType() == EventType.CLOSE || event.getType() == EventType.ABORT) {
                 Channel channel = clientChannels.get(event.getConnectionId());
+                if (log.isDebugEnabled()) {
+                    log.debug("Remote connection closed, closing client connection {}", event.getConnectionId());
+                }
                 if (channel != null) {
                     channel.close();
                 }
