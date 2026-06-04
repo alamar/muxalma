@@ -333,14 +333,16 @@ public class HttpProxyServer implements Consumer<NetworkEvent> {
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
             byte[] data = null;
 
-            if (msg instanceof HttpContent) {
-                HttpContent content = (HttpContent) msg;
+            if (msg instanceof HttpContent content) try {
                 data = new byte[content.content().readableBytes()];
                 content.content().readBytes(data);
-            } else if (msg instanceof ByteBuf) {
-                ByteBuf buffer = (ByteBuf) msg;
+            } finally {
+                content.content().release();
+            }else if (msg instanceof ByteBuf buffer) try {
                 data = new byte[buffer.readableBytes()];
                 buffer.readBytes(data);
+            } finally {
+                buffer.release();
             }
 
             if (data != null && data.length > 0) {

@@ -156,8 +156,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
-            if (msg instanceof ByteBuf) {
-                ByteBuf buffer = (ByteBuf) msg;
+            if (msg instanceof ByteBuf buffer) try {
                 byte[] data = new byte[buffer.readableBytes()];
                 buffer.readBytes(data);
 
@@ -172,6 +171,8 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                         EventType.DATA,
                         data
                 ));
+            } finally {
+                buffer.release();
             } else if (msg instanceof HttpResponse) {
                 // Для HTTP ответов, парсим и отправляем
                 // В реальном коде лучше использовать HttpObjectAggregator

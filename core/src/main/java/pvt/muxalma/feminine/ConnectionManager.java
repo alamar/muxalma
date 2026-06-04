@@ -65,7 +65,6 @@ public class ConnectionManager implements Consumer<NetworkEvent> {
             if (event.getType() == EventType.DATA) {
                 sendToClient(event.getConnectionId(), event.getPayload());
             } else if (event.getType() == EventType.CLOSE || event.getType() == EventType.ABORT) {
-                sendToClient(event.getConnectionId(), new byte[0]);
                 Channel channel = clientChannels.get(event.getConnectionId());
                 if (channel != null) {
                     channel.close();

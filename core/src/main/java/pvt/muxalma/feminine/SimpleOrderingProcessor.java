@@ -44,7 +44,7 @@ public class SimpleOrderingProcessor implements Consumer<NetworkEvent> {
             } else if (event.getSerial() > nextExpectedSerial) {
                 pendingEvents.offer(event);
             } else {
-                log.warn("{}: duplicate serial = {}", event.getConnectionId(), event.getSerial());
+                log.warn("{}: duplicate serial = {} with type {}", event.getConnectionId(), event.getSerial(), event.getType());
             }
         }
 
