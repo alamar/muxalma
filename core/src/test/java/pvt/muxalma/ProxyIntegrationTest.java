@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ProxyIntegrationTest {
+    public static final int TEST_PORT = 18888;
+
     private final Lifecycle lifecycle = new Lifecycle();
 
     @BeforeAll
@@ -31,7 +33,7 @@ public class ProxyIntegrationTest {
         Consumer<NetworkEvent> proxyClient = Muxalma.male(loopback, lifecycle);
 
         // Запускаем прокси-сервер "мама", и теперь они могут общаться
-        loopback.initialize(Muxalma.female(18080, proxyClient, lifecycle));
+        loopback.initialize(Muxalma.female(TEST_PORT, proxyClient, lifecycle));
         
         // Даем время на запуск
         Thread.sleep(1000);
@@ -44,11 +46,11 @@ public class ProxyIntegrationTest {
     
     @Test
     void testSimpleHttpRequest() throws IOException {
-        Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("localhost", 18080));
+        Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("localhost", TEST_PORT));
         URL url = new URL("http://httpbin.org/get");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
         conn.setConnectTimeout(5000);
-        conn.setReadTimeout(5000);
+        conn.setReadTimeout(15000);
         
         int responseCode = conn.getResponseCode();
         assertThat(responseCode).isEqualTo(200);
