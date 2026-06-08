@@ -126,8 +126,6 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 log.debug("Closed connection: {}", event.getConnectionId());
             }
         }
-        // Пробрасываем CLOSE дальше в серверную часть
-        upstreamConsumer.accept(event);
     }
 
     public void shutdown() {
@@ -190,7 +188,7 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 byte[] contentBytes = new byte[content.content().readableBytes()];
                 content.content().readBytes(contentBytes);
 
-                String fullResponse = responseBuilder.toString() + new String(contentBytes, StandardCharsets.UTF_8);
+                String fullResponse = responseBuilder + new String(contentBytes, StandardCharsets.UTF_8);
                 upstreamConsumer.accept(new ConcreteEvent(
                         connectionId,
                         serial.getAndIncrement(),
