@@ -1,5 +1,6 @@
 package pvt.muxalma.masculine;
 
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,16 +56,25 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
     }
 
     private void handleOpen(ConnectionEvent event) {
-        String hostPort = new String(event.getPayload());
-        String[] parts = hostPort.split(":");
-        String host = parts[0];
-        int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 80;
-
-        if (log.isDebugEnabled()) {
-            log.debug("Client opening connection to: {}:{}", host, port);
+        HostPort hostPort;
+        try {
+            hostPort = resolveHostPort(event);
+        } catch (Exception ex) {
+            upstreamConsumer.accept(new ConcreteEvent(
+                    event.getConnectionId(),
+                    -1,
+                    EventType.ABORT,
+                    ("Rejecting connection attempt to " + new String(event.getPayload()) + ": " +
+                            ex.getMessage()).getBytes(StandardCharsets.UTF_8)
+            ));
+            return;
         }
 
-        Bootstrap bootstrap = new Bootstrap();
+        if (log.isDebugEnabled()) {
+            log.debug("Client opening connection to: {}", hostPort);
+        }
+
+        Bootstrap bootstrap = configureBootstrap();
         bootstrap.group(workerGroup)
                 .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<SocketChannel>() {
@@ -78,12 +88,12 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         conn.setPendingEvent(event);
         connections.put(event.getConnectionId(), conn);
 
-        ChannelFuture future = bootstrap.connect(host, port);
+        ChannelFuture future = bootstrap.connect(hostPort.getHost(), hostPort.getPort());
         future.addListener((ChannelFutureListener) f -> {
             if (f.isSuccess()) {
                 conn.setChannel(f.channel());
                 if (log.isDebugEnabled()) {
-                    log.debug("Connected to remote server: {}:{}", host, port);
+                    log.debug("Connected to remote server: {}", hostPort);
                 }
                 event.getState().nowOpen();
             } else {
@@ -100,6 +110,14 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
                 ));
             }
         });
+    }
+
+    protected HostPort resolveHostPort(ConnectionEvent event) throws URISyntaxException, IllegalArgumentException {
+        return new HostPort(new String(event.getPayload()));
+    }
+
+    protected Bootstrap configureBootstrap() {
+        return new Bootstrap();
     }
 
     private void handleData(NetworkEvent event) {

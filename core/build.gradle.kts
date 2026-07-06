@@ -8,11 +8,11 @@ repositories {
 
 dependencies {
     // Netty - основной движок
-    implementation("io.netty:netty-all:4.1.107.Final")
+    implementation("io.netty:netty-all:4.1.135.Final")
 
     // Логирование
-    implementation("org.slf4j:slf4j-api:2.0.13")
-    implementation("org.slf4j:slf4j-simple:2.0.13")
+    implementation("org.slf4j:slf4j-api:2.0.18")
+    implementation("org.slf4j:slf4j-simple:2.0.18")
 
     // Тестирование
     testImplementation(platform("org.junit:junit-bom:5.10.1"))
