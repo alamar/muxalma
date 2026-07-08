@@ -2,7 +2,6 @@ package pvt.muxalma.h2;
 
 import pvt.muxalma.fanservice.Lifecycle;
 import pvt.muxalma.fanservice.Muxalma;
-import pvt.muxalma.feminine.HttpProxyServer;
 
 public class H2FemaleMain {
     public static void main(String[] args) throws Exception {

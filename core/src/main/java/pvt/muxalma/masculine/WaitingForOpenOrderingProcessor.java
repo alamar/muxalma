@@ -1,4 +1,4 @@
-package pvt.muxalma.processor;
+package pvt.muxalma.masculine;
 
 import java.util.Comparator;
 import java.util.Map;
@@ -9,13 +9,11 @@ import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pvt.muxalma.masculine.ConnectionEvent;
-import pvt.muxalma.masculine.HttpProxyClient;
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
 public class WaitingForOpenOrderingProcessor implements Consumer<NetworkEvent> {
-    private static final Logger log = LoggerFactory.getLogger(HttpProxyClient.class);
+    private static final Logger log = LoggerFactory.getLogger(WaitingForOpenOrderingProcessor.class);
 
     private final Consumer<? super ConnectionEvent> downstream;
     private final Map<UUID, ConnectionState> connections = new ConcurrentHashMap<>();

@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
-import pvt.muxalma.processor.WaitingForOpenOrderingProcessor;
 
 public class ConnectionEvent implements NetworkEvent {
     private final NetworkEvent event;
