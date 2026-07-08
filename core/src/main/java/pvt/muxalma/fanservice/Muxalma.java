@@ -5,23 +5,20 @@ import java.util.function.Consumer;
 import pvt.muxalma.feminine.HttpProxyServer;
 import pvt.muxalma.masculine.HttpProxyClient;
 import pvt.muxalma.feminine.SimpleOrderingProcessor;
+import pvt.muxalma.masculine.WaitingForOpenOrderingProcessor;
 import pvt.muxalma.processor.ParallelProcessor;
 import pvt.muxalma.model.NetworkEvent;
 import pvt.muxalma.processor.ValidationProcessor;
-import pvt.muxalma.processor.WaitingForOpenOrderingProcessor;
 
 public class Muxalma {
-    public static Consumer<NetworkEvent> male(Consumer<NetworkEvent> storage, Lifecycle lifecycle) {
-        // Создаем прокси-клиента "папа"
-        HttpProxyClient proxyClient = new HttpProxyClient(storage);
-
+    public static Consumer<NetworkEvent> male(HttpProxyClient proxyClient, Lifecycle lifecycle) {
         if (lifecycle != null)
             lifecycle.addStopMethod(proxyClient::shutdown);
 
         // Создаём цепочку для обработки событий
         WaitingForOpenOrderingProcessor ordered = new WaitingForOpenOrderingProcessor(proxyClient);
         ParallelProcessor parallel = new ParallelProcessor(ordered);
-        Consumer<NetworkEvent> valid = new ValidationProcessor(parallel, storage);
+        Consumer<NetworkEvent> valid = new ValidationProcessor(parallel, proxyClient.getUpstreamConsumer());
 
         if (lifecycle != null)
             lifecycle.addStopMethod(parallel::shutdown);

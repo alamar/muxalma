@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pvt.muxalma.fanservice.Lifecycle;
 import pvt.muxalma.fanservice.Muxalma;
+import pvt.muxalma.masculine.HttpProxyClient;
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
@@ -48,8 +49,8 @@ public class Harem {
         idAwareUpstream.accept(clientId, event);
     }
 
-    public BiConsumer<UUID, NetworkEvent> prince(Consumer<NetworkEvent> storage, Lifecycle lifecycle) {
-        Consumer<NetworkEvent> prince = Muxalma.male(storage, lifecycle);
+    public BiConsumer<UUID, NetworkEvent> prince(HttpProxyClient proxyClient, Lifecycle lifecycle) {
+        Consumer<NetworkEvent> prince = Muxalma.male(proxyClient, lifecycle);
 
         // Сообщение от наложницы принцу:
         return (clientId, event) -> {

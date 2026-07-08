@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 import pvt.muxalma.fanservice.Lifecycle;
 import pvt.muxalma.fanservice.Loopback;
 import pvt.muxalma.fanservice.Muxalma;
+import pvt.muxalma.masculine.HttpProxyClient;
 import pvt.muxalma.model.NetworkEvent;
 
 public class Main {
@@ -15,7 +16,7 @@ public class Main {
         Loopback loopback = new Loopback();
 
         // Создаем прокси-клиента "папа", которому пока некому отвечать
-        Consumer<NetworkEvent> proxyClient = Muxalma.male(loopback, lifecycle);
+        Consumer<NetworkEvent> proxyClient = Muxalma.male(new HttpProxyClient(loopback), lifecycle);
 
         // Запускаем прокси-сервер "мама", и теперь они могут общаться
         loopback.initialize(Muxalma.female(18080, proxyClient, lifecycle));

@@ -150,6 +150,11 @@ public class HttpProxyClient implements Consumer<ConnectionEvent> {
         workerGroup.shutdownGracefully();
     }
 
+    public Consumer<NetworkEvent> getUpstreamConsumer() {
+        return upstreamConsumer;
+    }
+
+
     private static class ClientConnection {
         private Channel channel;
         private NetworkEvent pendingEvent;
