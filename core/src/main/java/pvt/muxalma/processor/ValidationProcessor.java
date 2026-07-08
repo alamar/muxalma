@@ -26,6 +26,7 @@ public class ValidationProcessor extends ProcessorPushbackSupport {
             log.warn("{}: {}", event.getConnectionId(),
                     event.getPayload() == null ? "ABORT" : new String(event.getPayload()));
             downstream.accept(event);
+            return;
         }
 
         if (event.getSerial() < 0) {
