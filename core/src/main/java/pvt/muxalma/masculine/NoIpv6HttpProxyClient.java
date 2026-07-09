@@ -7,17 +7,37 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.resolver.ResolvedAddressTypes;
+import io.netty.resolver.dns.DefaultDnsCache;
+import io.netty.resolver.dns.DefaultDnsCnameCache;
 import io.netty.resolver.dns.DnsAddressResolverGroup;
+import io.netty.resolver.dns.DnsCache;
+import io.netty.resolver.dns.DnsCnameCache;
 import io.netty.resolver.dns.DnsNameResolverBuilder;
 import pvt.muxalma.model.NetworkEvent;
 
 public class NoIpv6HttpProxyClient extends HttpProxyClient {
 
     private final NioEventLoopGroup dnsEventLoopGroup;
+    private final DnsAddressResolverGroup resolverGroup;
 
     public NoIpv6HttpProxyClient(Consumer<NetworkEvent> upstreamConsumer) {
         super(upstreamConsumer);
+
         this.dnsEventLoopGroup = new NioEventLoopGroup(1);
+
+        DnsCache dnsCache = new DefaultDnsCache(60, 300, 30);
+        DnsCnameCache dnsCnameCache = new DefaultDnsCnameCache(60, 300);
+
+        DnsNameResolverBuilder resolverBuilder = new DnsNameResolverBuilder()
+                .eventLoop(dnsEventLoopGroup.next())
+                .datagramChannelType(NioDatagramChannel.class)
+                .resolvedAddressTypes(ResolvedAddressTypes.IPV4_ONLY)
+                .resolveCache(dnsCache)
+                .cnameCache(dnsCnameCache)
+                .maxQueriesPerResolve(2)
+                .queryTimeoutMillis(3000);
+
+        resolverGroup = new DnsAddressResolverGroup(resolverBuilder);
     }
 
     @Override
@@ -31,20 +51,13 @@ public class NoIpv6HttpProxyClient extends HttpProxyClient {
     @Override
     protected Bootstrap configureBootstrap() {
         Bootstrap bootstrap = super.configureBootstrap();
-
-        DnsNameResolverBuilder resolverBuilder = new DnsNameResolverBuilder()
-                .eventLoop(dnsEventLoopGroup.next())
-                .datagramChannelType(NioDatagramChannel.class)
-                .resolvedAddressTypes(ResolvedAddressTypes.IPV4_ONLY);
-
-        DnsAddressResolverGroup resolverGroup = new DnsAddressResolverGroup(resolverBuilder);
-
         return bootstrap.resolver(resolverGroup);
     }
 
     @Override
     public void shutdown() {
         super.shutdown();
+        resolverGroup.close();
         dnsEventLoopGroup.shutdownGracefully();
     }
 }
