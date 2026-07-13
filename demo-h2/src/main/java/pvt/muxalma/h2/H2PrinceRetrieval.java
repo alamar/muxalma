@@ -9,23 +9,23 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import pvt.muxalma.fanservice.PollingRetrievalSupport;
 import pvt.muxalma.model.EventType;
 import pvt.muxalma.model.NetworkEvent;
 
-public class H2Retrieval extends PollingRetrievalSupport {
+public class H2PrinceRetrieval extends PollingRetrievalSupport {
     private final String connectionUrl;
     private final String tableName;
-    private final Consumer<NetworkEvent> targetConsumer;
+    private final BiConsumer<UUID, NetworkEvent> targetConsumer;
     private final AtomicLong lastProcessedId;
 
-    public H2Retrieval(String databasePath, String tableName, Consumer<NetworkEvent> targetConsumer) {
+    public H2PrinceRetrieval(String databasePath, String tableName, BiConsumer<UUID, NetworkEvent> targetConsumer) {
         this(databasePath, tableName, targetConsumer, 10);
     }
 
-    public H2Retrieval(String databasePath, String tableName, Consumer<NetworkEvent> targetConsumer, long pollIntervalMs) {
+    public H2PrinceRetrieval(String databasePath, String tableName, BiConsumer<UUID, NetworkEvent> targetConsumer, long pollIntervalMs) {
         super(pollIntervalMs);
         this.connectionUrl = String.format(
                 "jdbc:h2:%s;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
@@ -49,7 +49,7 @@ public class H2Retrieval extends PollingRetrievalSupport {
 
     protected void poll() {
         String selectSQL = String.format("""
-                SELECT id, connection_id, serial, event_type, payload 
+                SELECT id, client_id, connection_id, serial, event_type, payload 
                 FROM %s 
                 WHERE id > ? 
                 ORDER BY id ASC
@@ -66,7 +66,7 @@ public class H2Retrieval extends PollingRetrievalSupport {
                     eventId = rs.getLong("id");
                     NetworkEvent event = extractEvent(rs);
 
-                    targetConsumer.accept(event);
+                    targetConsumer.accept((UUID) rs.getObject("client_id"), event);
 
                 }
             } finally {

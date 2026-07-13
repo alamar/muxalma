@@ -6,11 +6,11 @@
 
 Пример реализации транспорта на основе H2 приведён [в дереве исходников](demo-h2/src/main/java/pvt/muxalma/h2).
 
-В составе: [Считыватель](demo-h2/src/main/java/pvt/muxalma/h2/H2Retrieval.java) и [записыватель](demo-h2/src/main/java/pvt/muxalma/h2/H2Storage.java) событий.
+В составе: [Считывате](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcubineRetrieval.java)[ли](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceRetrieval.java) и [записыватель](demo-h2/src/main/java/pvt/muxalma/h2/H2Storage.java) событий.
 
-Два Main-класса: [материнский](demo-h2/src/main/java/pvt/muxalma/h2/H2FemaleMain.java) и [отцовский](demo-h2/src/main/java/pvt/muxalma/h2/H2MaleMain.java) (в этом вырожденном случае должны исполняться на одной машине).
+Два Main-класса: [материнский](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcibuneMain.java) и [отцовский](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceMain.java) (в этом вырожденном случае должны исполняться на одной машине).
 
-После их запуска через прокси `0.0.0.0:18080` можно осуществлять HTTP и HTTPS-запросы. При этом приёмник и источник трафика связаны лишь через базу данных SQL и больше ничего не знают друг о друге.
+После их запуска через прокси `0.0.0.0:{порт}` можно осуществлять HTTP и HTTPS-запросы. При этом приёмник и источник трафика связаны лишь через базу данных SQL и больше ничего не знают друг о друге.
 
 ## Ответы на вопросы
 

@@ -6,11 +6,13 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import pvt.muxalma.model.NetworkEvent;
 
-public class H2Storage implements Consumer<NetworkEvent> {
+public class H2Storage implements BiConsumer<UUID, NetworkEvent> {
     private final String connectionUrl;
     private final String tableName;
 
@@ -27,6 +29,7 @@ public class H2Storage implements Consumer<NetworkEvent> {
         String createTableSQL = String.format("""
             CREATE TABLE IF NOT EXISTS %s (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                client_id UUID NOT NULL,
                 connection_id UUID NOT NULL,
                 serial INT NOT NULL,
                 event_type VARCHAR(50) NOT NULL,
@@ -44,19 +47,20 @@ public class H2Storage implements Consumer<NetworkEvent> {
     }
 
     @Override
-    public void accept(NetworkEvent event) {
+    public void accept(UUID clientId, NetworkEvent event) {
         String insertSQL = String.format("""
-            INSERT INTO %s (connection_id, serial, event_type, payload) 
-            VALUES (?, ?, ?, ?)
+            INSERT INTO %s (client_id, connection_id, serial, event_type, payload) 
+            VALUES (?, ?, ?, ?, ?)
             """, tableName);
 
         try (Connection conn = DriverManager.getConnection(connectionUrl);
              PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
 
-            pstmt.setObject(1, event.getConnectionId());
-            pstmt.setInt(2, event.getSerial());
-            pstmt.setString(3, event.getType().name());
-            pstmt.setBytes(4, event.getPayload());
+            pstmt.setObject(1, clientId);
+            pstmt.setObject(2, event.getConnectionId());
+            pstmt.setInt(3, event.getSerial());
+            pstmt.setString(4, event.getType().name());
+            pstmt.setBytes(5, event.getPayload());
             pstmt.executeUpdate();
 
         } catch (SQLException e) {

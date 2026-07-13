@@ -1,15 +1,17 @@
 package pvt.muxalma.h2;
 
 import pvt.muxalma.fanservice.Lifecycle;
-import pvt.muxalma.fanservice.Muxalma;
+import pvt.muxalma.fanservice.harem.Harem;
+import pvt.muxalma.fanservice.harem.PrinceSingleStorage;
 import pvt.muxalma.masculine.HttpProxyClient;
 
-public class H2MaleMain {
+public class H2PrinceMain {
     public static void main(String[] args) throws Exception {
         Lifecycle lifecycle = new Lifecycle();
-        final H2Storage maleStorage = new H2Storage("build/db", "male_storage");
-        H2Retrieval retrieval = new H2Retrieval("build/db", "female_storage",
-                Muxalma.male(new HttpProxyClient(maleStorage), lifecycle));
+        Harem harem = new Harem();
+        H2PrinceRetrieval retrieval = new H2PrinceRetrieval("build/db", "concubines_storage",
+                harem.prince(new HttpProxyClient(new PrinceSingleStorage(harem,
+                        new H2Storage("build/db", "prince_storage"))), lifecycle));
 
         retrieval.start();
 
