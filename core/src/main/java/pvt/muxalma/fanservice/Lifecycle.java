@@ -10,12 +10,22 @@ public class Lifecycle {
     private static final Logger log = LoggerFactory.getLogger(Lifecycle.class);
 
     private final List<Runnable> stopMethods = new LinkedList<>();
+    private final List<Lifecycle> leaves = new LinkedList<>();
 
     public void addStopMethod(Runnable m) {
         stopMethods.add(m);
     }
 
+    public Lifecycle newLeaf() {
+        Lifecycle leaf = new Lifecycle();
+        leaves.add(leaf);
+        return leaf;
+    }
+
     public void stop() {
+        for (Lifecycle leaf : leaves) {
+            leaf.stop();
+        }
         for (Runnable stopMethods : stopMethods) {
             try {
                 stopMethods.run();
@@ -23,6 +33,7 @@ public class Lifecycle {
                 log.error("While stopping", th);
             }
         }
+        leaves.clear();
         stopMethods.clear();
     }
 }

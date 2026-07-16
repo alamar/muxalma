@@ -4,13 +4,15 @@
 
 ## А подробнее
 
-Пример реализации транспорта на основе H2 приведён [в дереве исходников](demo-h2/src/main/java/pvt/muxalma/h2).
+Пример реализации транспорта на основе H2 приведён в модуле [`demo-h2`](demo-h2/src/main/java/pvt/muxalma/h2).
 
 В составе: [Считывате](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcubineRetrieval.java)[ли](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceRetrieval.java) и [записыватель](demo-h2/src/main/java/pvt/muxalma/h2/H2Storage.java) событий.
 
-Два Main-класса: [материнский](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcibuneMain.java) и [отцовский](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceMain.java) (в этом вырожденном случае должны исполняться на одной машине).
+Два Main-класса: [наложницы](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcibuneMain.java) и [принца](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceMain.java) (в этом вырожденном случае должны исполняться на одной машине). Можно запускать несколько наложниц одновременно, каждая из них будет вычитывать результаты только для своих запросов посредством `WHERE`.
 
 После их запуска через прокси `0.0.0.0:{порт}` можно осуществлять HTTP и HTTPS-запросы. При этом приёмник и источник трафика связаны лишь через базу данных SQL и больше ничего не знают друг о друге.
+
+Другой пример реализации расположен в модуле [`demo-mdns`](demo-mdns/README.md) и реализует архитектуру "папа"/"мама" через классический TCP-сокет.
 
 ## Ответы на вопросы
 
