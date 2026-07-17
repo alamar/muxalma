@@ -8,7 +8,7 @@
 
 В составе: [Считывате](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcubineRetrieval.java)[ли](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceRetrieval.java) и [записыватель](demo-h2/src/main/java/pvt/muxalma/h2/H2Storage.java) событий.
 
-Два Main-класса: [наложницы](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcibuneMain.java) и [принца](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceMain.java) (в этом вырожденном случае должны исполняться на одной машине). Можно запускать несколько наложниц одновременно, каждая из них будет вычитывать результаты только для своих запросов посредством `WHERE`.
+Два Main-класса: [наложницы](demo-h2/src/main/java/pvt/muxalma/h2/H2ConcubineMain.java) и [принца](demo-h2/src/main/java/pvt/muxalma/h2/H2PrinceMain.java) (в этом вырожденном случае должны исполняться на одной машине). Можно запускать несколько наложниц одновременно, каждая из них будет вычитывать результаты только для своих запросов посредством `WHERE`.
 
 После их запуска через прокси `0.0.0.0:{порт}` можно осуществлять HTTP и HTTPS-запросы. При этом приёмник и источник трафика связаны лишь через базу данных SQL и больше ничего не знают друг о друге.
 
