@@ -17,7 +17,7 @@ const val httpProxyPort = 18080
 
 fun main() {
     val jmdns = JmDNS.create(InetAddress.getLocalHost())
-    var foundRelay = AtomicBoolean(false)
+    val foundRelay = AtomicBoolean(false)
 
     val lifecycle = Lifecycle()
 

@@ -7,8 +7,8 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":core"))
-    implementation("org.jmdns:jmdns:3.6.3")
+    api(project(":core"))
+    api("org.jmdns:jmdns:3.6.3")
 }
 
 kotlin {
