@@ -9,6 +9,7 @@ import java.net.InetAddress
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.jmdns.JmDNS
+import javax.jmdns.JmmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceListener
 import kotlin.system.exitProcess
@@ -16,14 +17,14 @@ import kotlin.system.exitProcess
 const val httpProxyPort = 18080
 
 fun main() {
-    val jmdns = JmDNS.create(InetAddress.getLocalHost())
+    val jmdns = JmmDNS.Factory.getInstance()
     val foundRelay = AtomicBoolean(false)
 
     val lifecycle = Lifecycle()
 
     // Добавляем обработчик завершения
     Runtime.getRuntime().addShutdownHook(Thread(Runnable {
-        println("Shutting down relay...")
+        println("Shutting down proxy...")
         lifecycle.stop()
         println("Relay stopped")
     }))
@@ -39,12 +40,12 @@ fun main() {
 
         override fun serviceResolved(event: ServiceEvent) {
             println("Found relay at " + event.getInfo().getInetAddresses()[0] + ":" + event.getInfo().getPort())
-            if (!foundRelay.compareAndSet(false, true))
-                return // Only one connection to relay
 
             Socket(event.getInfo().getInetAddresses()[0], event.getInfo().getPort()).use { socket ->
                 ObjectOutputStream(socket.getOutputStream()).use { oos ->
                     ObjectInputStream(socket.getInputStream()).use { ois ->
+                        if (!foundRelay.compareAndSet(false, true))
+                            return // Only one connection to relay
 
                         val input = Muxalma.female(httpProxyPort, { outEvent ->
                             synchronized(this) {
