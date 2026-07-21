@@ -6,15 +6,14 @@ import pvt.muxalma.masculine.HttpProxyClient
 import pvt.muxalma.model.NetworkEvent
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-import java.net.InetAddress
 import java.net.ServerSocket
-import javax.jmdns.JmDNS
+import javax.jmdns.JmmDNS
 import javax.jmdns.ServiceInfo
 
 const val relayPort = 21285
 
-fun main() {
-    val jmdns = JmDNS.create(InetAddress.getLocalHost())
+fun main(args: Array<String>) {
+    val jmdns = JmmDNS.Factory.getInstance()
     val serviceInfo = ServiceInfo.create("_muxalma._tcp.local.", "prince", relayPort, "muxalma")
     jmdns.registerService(serviceInfo)
 
